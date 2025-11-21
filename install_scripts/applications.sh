@@ -31,6 +31,84 @@ show_applications_banner() {
 }
 
 # ============================================================================
+# MENU DISPLAY FUNCTIONS
+# ============================================================================
+
+show_main_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}                    ${BOLD}Main Menu${RESET}                           ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} Web Browsers"
+    echo -e "  ${GREEN}2)${RESET} Communication Tools"
+    echo -e "  ${GREEN}3)${RESET} Developer Tools"
+    echo -e "  ${GREEN}4)${RESET} Media Applications"
+    echo -e "  ${GREEN}5)${RESET} System Tools"
+    echo -e "  ${RED}6)${RESET} Back to Main Menu\n"
+}
+
+show_browsers_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}                  ${BOLD}Web Browsers${RESET}                         ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} Google Chrome"
+    echo -e "  ${GREEN}2)${RESET} Firefox"
+    echo -e "  ${GREEN}3)${RESET} Brave Browser"
+    echo -e "  ${GREEN}4)${RESET} Microsoft Edge"
+    echo -e "  ${YELLOW}5)${RESET} Install All Browsers"
+    echo -e "  ${RED}6)${RESET} Back to Main Menu\n"
+}
+
+show_communication_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}              ${BOLD}Communication Tools${RESET}                     ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} Slack"
+    echo -e "  ${GREEN}2)${RESET} Discord"
+    echo -e "  ${GREEN}3)${RESET} Telegram"
+    echo -e "  ${GREEN}4)${RESET} Zoom"
+    echo -e "  ${YELLOW}5)${RESET} Install All Communication Tools"
+    echo -e "  ${RED}6)${RESET} Back to Main Menu\n"
+}
+
+show_developer_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}                ${BOLD}Developer Tools${RESET}                       ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} Visual Studio Code"
+    echo -e "  ${GREEN}2)${RESET} Cursor"
+    echo -e "  ${GREEN}3)${RESET} Antigravity"
+    echo -e "  ${YELLOW}4)${RESET} Install All Developer Tools"
+    echo -e "  ${RED}5)${RESET} Back to Main Menu\n"
+}
+
+show_media_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}              ${BOLD}Media Applications${RESET}                      ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} PipeWire RNNoise (Noise Suppression)"
+    echo -e "  ${GREEN}2)${RESET} Spotify"
+    echo -e "  ${GREEN}3)${RESET} VLC Media Player"
+    echo -e "  ${GREEN}4)${RESET} OBS Studio"
+    echo -e "  ${GREEN}5)${RESET} NoiseTorch"
+    echo -e "  ${GREEN}6)${RESET} EasyEffects"
+    echo -e "  ${GREEN}7)${RESET} Cava (Audio Visualizer)"
+    echo -e "  ${YELLOW}8)${RESET} Install All Media Applications"
+    echo -e "  ${RED}9)${RESET} Back to Main Menu\n"
+}
+
+show_system_tools_menu() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RESET}                 ${BOLD}System Tools${RESET}                         ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo -e "  ${GREEN}1)${RESET} btop (Resource Monitor)"
+    echo -e "  ${GREEN}2)${RESET} fastfetch (System Information)"
+    echo -e "  ${GREEN}3)${RESET} Rofi (Window Switcher/Launcher)"
+    echo -e "  ${GREEN}4)${RESET} Kitty (Terminal Emulator)"
+    echo -e "  ${YELLOW}5)${RESET} Install All System Tools"
+    echo -e "  ${RED}6)${RESET} Back to Main Menu\n"
+}
+
+# ============================================================================
 # BROWSER INSTALLATIONS
 # ============================================================================
 
@@ -836,6 +914,27 @@ install_cava() {
     cava -v
 }
 
+install_all_media() {
+    print_section "Installing All Media Applications"
+    
+    local failed=0
+    install_spotify || ((failed++))
+    install_vlc || ((failed++))
+    install_obs || ((failed++))
+    install_cava || ((failed++))
+    install_noisetorch || ((failed++))
+    install_easyeffects || ((failed++))
+    
+    echo -e "\n${CYAN}════════════════════════════════════════${RESET}"
+    if [ $failed -eq 0 ]; then
+        echo -e "${GREEN}${BOLD}✓ All media applications installed successfully!${RESET}"
+    else
+        echo -e "${YELLOW}${BOLD}⚠ $failed application(s) failed to install${RESET}"
+    fi
+    echo -e "${CYAN}════════════════════════════════════════${RESET}\n"
+    
+    echo -e "${NOTE} For PipeWire RNNoise, run it separately from the menu"
+}
 
 # ============================================================================
 # SUBMENU HANDLERS
@@ -898,7 +997,7 @@ media_menu() {
     while true; do
         show_applications_banner
         show_media_menu
-        read -p "$(echo -e ${CYAN}Enter your choice [1-8]:${RESET} )" choice
+        read -p "$(echo -e ${CYAN}Enter your choice [1-9]:${RESET} )" choice
         
         case $choice in
             1) install_pipewire_rnnoise; read -p "Press Enter to continue..." ;;
@@ -907,8 +1006,27 @@ media_menu() {
             4) install_obs; read -p "Press Enter to continue..." ;;
             5) install_noisetorch; read -p "Press Enter to continue..." ;;
             6) install_easyeffects; read -p "Press Enter to continue..." ;;
-            7) install_all_media; read -p "Press Enter to continue..." ;;
-            8) return 0 ;;
+            7) install_cava; read -p "Press Enter to continue..." ;;
+            8) install_all_media; read -p "Press Enter to continue..." ;;
+            9) return 0 ;;
+            *) echo -e "${RED}Invalid option. Please try again.${RESET}\n"; sleep 1 ;;
+        esac
+    done
+}
+
+system_tools_menu() {
+    while true; do
+        show_applications_banner
+        show_system_tools_menu
+        read -p "$(echo -e ${CYAN}Enter your choice [1-6]:${RESET} )" choice
+        
+        case $choice in
+            1) install_btop; read -p "Press Enter to continue..." ;;
+            2) install_fastfetch; read -p "Press Enter to continue..." ;;
+            3) install_rofi; read -p "Press Enter to continue..." ;;
+            4) install_kitty; read -p "Press Enter to continue..." ;;
+            5) install_all_system_tools; read -p "Press Enter to continue..." ;;
+            6) return 0 ;;
             *) echo -e "${RED}Invalid option. Please try again.${RESET}\n"; sleep 1 ;;
         esac
     done
@@ -923,14 +1041,15 @@ main() {
     
     while true; do
         show_main_menu
-        read -p "$(echo -e ${CYAN}Enter your choice [1-5]:${RESET} )" choice
+        read -p "$(echo -e ${CYAN}Enter your choice [1-6]:${RESET} )" choice
         
         case $choice in
             1) browsers_menu ;;
             2) communication_menu ;;
             3) developer_tools_menu ;;
             4) media_menu ;;
-            5)
+            5) system_tools_menu ;;
+            6)
                 echo -e "\n${CYAN}Returning to main menu...${RESET}\n"
                 exit 0
                 ;;

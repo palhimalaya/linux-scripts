@@ -71,24 +71,28 @@ backup_gnome_settings() {
     
     echo -e "${INFO} Exporting GNOME/Pop Shell settings..."
     
-    # GNOME Shell extensions
+    # GNOME Shell extensions (suppress errors if GNOME Shell not available)
     if command -v gnome-extensions >/dev/null 2>&1; then
-        gnome-extensions list > "$BACKUP_DIR/gnome/extensions-list.txt"
+        gnome-extensions list > "$BACKUP_DIR/gnome/extensions-list.txt" 2>/dev/null || echo -e "${WARN} Could not connect to GNOME Shell (extensions list skipped)"
     fi
     
     # Dconf settings (complete GNOME configuration)
-    dconf dump / > "$BACKUP_DIR/gnome/dconf-settings.ini"
-    
-    # Pop Shell specific settings
-    dconf dump /org/gnome/shell/extensions/pop-shell/ > "$BACKUP_DIR/gnome/pop-shell-settings.ini" 2>/dev/null || true
-    
-    # Keybindings
-    dconf dump /org/gnome/desktop/wm/keybindings/ > "$BACKUP_DIR/gnome/keybindings.ini"
-    dconf dump /org/gnome/settings-daemon/plugins/media-keys/ > "$BACKUP_DIR/gnome/media-keys.ini"
-    
-    # Desktop appearance
-    dconf dump /org/gnome/desktop/interface/ > "$BACKUP_DIR/gnome/interface.ini"
-    dconf dump /org/gnome/desktop/background/ > "$BACKUP_DIR/gnome/background.ini"
+    if command -v dconf >/dev/null 2>&1; then
+        dconf dump / > "$BACKUP_DIR/gnome/dconf-settings.ini" 2>/dev/null || echo -e "${WARN} Could not export dconf settings"
+        
+        # Pop Shell specific settings
+        dconf dump /org/gnome/shell/extensions/pop-shell/ > "$BACKUP_DIR/gnome/pop-shell-settings.ini" 2>/dev/null || true
+        
+        # Keybindings
+        dconf dump /org/gnome/desktop/wm/keybindings/ > "$BACKUP_DIR/gnome/keybindings.ini" 2>/dev/null || true
+        dconf dump /org/gnome/settings-daemon/plugins/media-keys/ > "$BACKUP_DIR/gnome/media-keys.ini" 2>/dev/null || true
+        
+        # Desktop appearance
+        dconf dump /org/gnome/desktop/interface/ > "$BACKUP_DIR/gnome/interface.ini" 2>/dev/null || true
+        dconf dump /org/gnome/desktop/background/ > "$BACKUP_DIR/gnome/background.ini" 2>/dev/null || true
+    else
+        echo -e "${WARN} dconf not available, skipping GNOME settings backup"
+    fi
     
     echo -e "${OK} GNOME settings exported"
 }
@@ -99,8 +103,10 @@ backup_config_files() {
     local configs=(
         "$HOME/.bashrc"
         "$HOME/.bash_profile"
+        "$HOME/.bash_history"
         "$HOME/.zshrc"
         "$HOME/.zprofile"
+        "$HOME/.zsh_history"
         "$HOME/.gitconfig"
         "$HOME/.vimrc"
         "$HOME/.tmux.conf"
@@ -111,6 +117,7 @@ backup_config_files() {
         "$HOME/.config/terminator"
         "$HOME/.config/fish"
         "$HOME/.config/starship.toml"
+        "$HOME/.config/fastfetch"
         "$HOME/.ssh/config"
     )
     
@@ -400,8 +407,18 @@ create_archive() {
     cd "$PARENT_DIR"
     tar -czf "${BACKUP_NAME}.tar.gz" "$(basename "$BACKUP_DIR")" 2>&1 | tee -a "$LOG"
     
-    local archive_size=$(du -h "${BACKUP_NAME}.tar.gz" | cut -f1)
-    echo -e "${OK} Archive created: ${CYAN}${BACKUP_NAME}.tar.gz${RESET} (${archive_size})"
+    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+        local archive_size=$(du -h "${BACKUP_NAME}.tar.gz" | cut -f1)
+        echo -e "${OK} Archive created: ${CYAN}${BACKUP_NAME}.tar.gz${RESET} (${archive_size})"
+        
+        # Clean up the backup directory after successful archive creation
+        echo -e "${INFO} Cleaning up backup directory..."
+        rm -rf "$BACKUP_DIR"
+        echo -e "${OK} Backup directory removed (archive retained)"
+    else
+        echo -e "${ERROR} Failed to create archive"
+        return 1
+    fi
 }
 
 # ============================================================================
@@ -449,7 +466,6 @@ main() {
     # Summary
     print_section "Backup Complete"
     echo -e "${GREEN}✓ System backup completed successfully!${RESET}\n"
-    echo -e "${INFO} Backup location: ${CYAN}$BACKUP_DIR${RESET}"
     echo -e "${INFO} Archive: ${CYAN}${PARENT_DIR}/${BACKUP_NAME}.tar.gz${RESET}"
     echo -e "${INFO} Log file: ${CYAN}$LOG${RESET}\n"
     
@@ -461,3 +477,4 @@ main() {
 
 # Run main function
 main
+
