@@ -391,6 +391,32 @@ install_mysql() {
     esac
 }
 
+install_nvim() {
+    print_section "Installing Neovim"
+    
+    if command -v nvim &> /dev/null; then
+        echo -e "${INFO} Neovim is already installed"
+        nvim --version | head -1
+        return 0
+    fi
+    
+    # Try to get latest stable version
+    case $PKG_MANAGER in
+        apt)
+            echo -e "${INFO} Adding Neovim PPA for latest version..."
+            sudo add-apt-repository -y ppa:neovim-ppa/unstable >> "$LOG_FILE" 2>&1
+            update_package_database "$LOG_FILE"
+            install_package "neovim" "$LOG_FILE"
+            ;;
+        *)
+            install_package "neovim" "$LOG_FILE"
+            ;;
+    esac
+    
+    echo -e "${OK} Neovim installed successfully"
+    nvim --version | head -1
+}
+
 install_all_tools() {
     print_section "Installing All Developer Tools"
     
@@ -400,6 +426,7 @@ install_all_tools() {
     echo -e "  - Ruby (via asdf)"
     echo -e "  - PostgreSQL (system package)"
     echo -e "  - MySQL (system package)"
+    echo -e "  - Neovim (latest)"
     echo ""
     read -p "$(echo -e ${YELLOW}Continue? [y/N]:${RESET} )" -n 1 -r
     echo
@@ -427,6 +454,9 @@ install_all_tools() {
     
     echo -e "\n${INFO} Installing MySQL (system package)..."
     install_mysql || ((failed++))
+
+    echo -e "\n${INFO} Installing Neovim..."
+    install_nvim || ((failed++))
     
     echo -e "\n${CYAN}════════════════════════════════════════${RESET}"
     if [ $failed -eq 0 ]; then
@@ -448,8 +478,9 @@ show_dev_menu() {
     echo -e "  ${GREEN}3${RESET}) Install Ruby ${CYAN}(via asdf)${RESET}"
     echo -e "  ${GREEN}4${RESET}) Install PostgreSQL ${YELLOW}(system package)${RESET}"
     echo -e "  ${GREEN}5${RESET}) Install MySQL ${YELLOW}(system package)${RESET}"
-    echo -e "  ${GREEN}6${RESET}) Install All Tools"
-    echo -e "  ${GREEN}7${RESET}) Back to Main Menu"
+    echo -e "  ${GREEN}6${RESET}) Install Neovim"
+    echo -e "  ${GREEN}7${RESET}) Install All Tools"
+    echo -e "  ${GREEN}8${RESET}) Back to Main Menu"
     echo ""
 }
 
@@ -491,11 +522,16 @@ main() {
                 show_dev_banner
                 ;;
             6)
-                install_all_tools
+                install_nvim
                 read -p "Press Enter to continue..."
                 show_dev_banner
                 ;;
             7)
+                install_all_tools
+                read -p "Press Enter to continue..."
+                show_dev_banner
+                ;;
+            8)
                 echo -e "\n${CYAN}Returning to main menu...${RESET}\n"
                 exit 0
                 ;;

@@ -48,9 +48,10 @@ show_menu() {
     echo -e "  ${GREEN}2${RESET}) Install Fonts (System + Nerd Fonts)"
     echo -e "  ${GREEN}3${RESET}) ${MAGENTA}Developer Tools Menu${RESET} (asdf, Node.js, Ruby, PostgreSQL, MySQL)"
     echo -e "  ${GREEN}4${RESET}) ${BLUE}Applications Menu${RESET} (Browsers, Communication, IDEs, Media)"
-    echo -e "  ${GREEN}5${RESET}) ${YELLOW}Backup System Configuration${RESET}"
-    echo -e "  ${GREEN}6${RESET}) Install All ${CYAN}(Zsh + Fonts)${RESET}"
-    echo -e "  ${GREEN}7${RESET}) Exit"
+    echo -e "  ${GREEN}5${RESET}) ${MAGENTA}Install Dotfiles${RESET} (Symlink configurations)"
+    echo -e "  ${GREEN}6${RESET}) ${YELLOW}Backup System Configuration${RESET}"
+    echo -e "  ${GREEN}7${RESET}) Install All ${CYAN}(Zsh + Fonts)${RESET}"
+    echo -e "  ${GREEN}8${RESET}) Exit"
     echo ""
 }
 
@@ -101,6 +102,10 @@ open_developer_menu() {
 
 open_applications_menu() {
     run_script "applications.sh"
+}
+
+open_config_menu() {
+    run_script "config.sh"
 }
 
 install_all() {
@@ -154,7 +159,7 @@ main() {
     if [ $# -eq 0 ]; then
         while true; do
             show_menu
-            read -p "$(echo -e ${CYAN}Enter your choice [1-7]:${RESET} )" choice
+            read -p "$(echo -e ${CYAN}Enter your choice [1-8]:${RESET} )" choice
             
             case $choice in
                 1)
@@ -176,16 +181,20 @@ main() {
                     show_banner
                     ;;
                 5)
+                    open_config_menu
+                    show_banner
+                    ;;
+                6)
                     backup_system
                     read -p "Press Enter to continue..."
                     show_banner
                     ;;
-                6)
+                7)
                     install_all
                     read -p "Press Enter to continue..."
                     show_banner
                     ;;
-                7)
+                8)
                     echo -e "\n${CYAN}Goodbye!${RESET}\n"
                     exit 0
                     ;;
@@ -212,6 +221,9 @@ main() {
         apps|applications)
             open_applications_menu
             ;;
+        config|dotfiles)
+            open_config_menu
+            ;;
         backup)
             backup_system
             ;;
@@ -225,7 +237,9 @@ main() {
             echo "  zsh         Install Zsh with Oh My Zsh"
             echo "  fonts       Install fonts"
             echo "  dev         Open developer tools menu"
+            echo "  dev         Open developer tools menu"
             echo "  apps        Open applications menu"
+            echo "  config      Open configuration/dotfiles menu"
             echo "  backup      Backup current system configuration"
             echo "  all         Install all components (prompts for backup first)"
             echo "  --help      Show this help message"

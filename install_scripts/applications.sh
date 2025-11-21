@@ -131,6 +131,100 @@ install_all_browsers() {
 }
 
 # ============================================================================
+# SYSTEM TOOLS
+# ============================================================================
+
+install_btop() {
+    print_section "Installing btop (Resource Monitor)"
+    
+    if command -v btop &> /dev/null; then
+        echo -e "${INFO} btop is already installed"
+        btop --version
+        return 0
+    fi
+    
+    install_package "btop" "$LOG_FILE"
+    echo -e "${OK} btop installed successfully"
+    btop --version
+}
+
+install_fastfetch() {
+    print_section "Installing fastfetch (System Information)"
+    
+    if command -v fastfetch &> /dev/null; then
+        echo -e "${INFO} fastfetch is already installed"
+        fastfetch --version
+        return 0
+    fi
+    
+    # Fastfetch might need a PPA on older Ubuntus or specific handling
+    case $PKG_MANAGER in
+        apt)
+            if apt-cache search fastfetch | grep -q "^fastfetch"; then
+                install_package "fastfetch" "$LOG_FILE"
+            else
+                echo -e "${INFO} Adding fastfetch PPA..."
+                sudo add-apt-repository -y ppa:zhangsongcui3371/fastfetch >> "$LOG_FILE" 2>&1
+                update_package_database "$LOG_FILE"
+                install_package "fastfetch" "$LOG_FILE"
+            fi
+            ;;
+        *)
+            install_package "fastfetch" "$LOG_FILE"
+            ;;
+    esac
+    
+    echo -e "${OK} fastfetch installed successfully"
+    fastfetch --version
+}
+
+install_rofi() {
+    print_section "Installing Rofi (Window Switcher/Launcher)"
+    
+    if command -v rofi &> /dev/null; then
+        echo -e "${INFO} Rofi is already installed"
+        rofi -version
+        return 0
+    fi
+    
+    install_package "rofi" "$LOG_FILE"
+    echo -e "${OK} Rofi installed successfully"
+    rofi -version
+}
+
+install_kitty() {
+    print_section "Installing Kitty (Terminal Emulator)"
+    
+    if command -v kitty &> /dev/null; then
+        echo -e "${INFO} Kitty is already installed"
+        kitty --version
+        return 0
+    fi
+    
+    install_package "kitty" "$LOG_FILE"
+    echo -e "${OK} Kitty installed successfully"
+    kitty --version
+}
+
+install_all_system_tools() {
+    print_section "Installing All System Tools"
+    
+    local failed=0
+    install_btop || ((failed++))
+    install_fastfetch || ((failed++))
+    install_rofi || ((failed++))
+    install_kitty || ((failed++))
+    
+    echo -e "\n${CYAN}════════════════════════════════════════${RESET}"
+    if [ $failed -eq 0 ]; then
+        echo -e "${GREEN}${BOLD}✓ All system tools installed successfully!${RESET}"
+    else
+        echo -e "${YELLOW}${BOLD}⚠ $failed tool(s) failed to install${RESET}"
+    fi
+    echo -e "${CYAN}════════════════════════════════════════${RESET}\n"
+}
+
+# ============================================================================
 # COMMUNICATION TOOLS
 # ============================================================================
 
@@ -191,23 +285,30 @@ install_slack() {
 install_discord() {
     print_section "Installing Discord"
     
-    if command -v discord &> /dev/null; then
-        echo -e "${INFO} Discord is already installed"
+    if flatpak list | grep -q "com.discordapp.Discord"; then
+        echo -e "${INFO} Discord is already installed (Flatpak)"
         return 0
     fi
     
-    echo -e "${INFO} Downloading Discord..."
-    local temp_deb="/tmp/discord.deb"
-    
-    if download_with_retry "https://discord.com/api/download?platform=linux&format=deb" "$temp_deb"; then
-        echo -e "${INFO} Installing Discord..."
-        sudo dpkg -i "$temp_deb" >> "$LOG_FILE" 2>&1 || sudo apt-get install -f -y >> "$LOG_FILE" 2>&1
-        rm -f "$temp_deb"
-        echo -e "${OK} Discord installed successfully"
-    else
-        echo -e "${ERROR} Failed to download Discord"
-        return 1
+    # Check for old system installation
+    if command -v discord &> /dev/null; then
+        echo -e "${WARN} Old system Discord installation detected"
+        echo -e "${NOTE} Removing old version and installing Flatpak version..."
+        sudo apt remove discord -y >> "$LOG_FILE" 2>&1 || true
     fi
+    
+    # Ensure Flatpak is installed
+    if ! command -v flatpak &> /dev/null; then
+        echo -e "${INFO} Installing Flatpak..."
+        install_package "flatpak" "$LOG_FILE"
+        echo -e "${INFO} Adding Flathub repository..."
+        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >> "$LOG_FILE" 2>&1
+    fi
+    
+    echo -e "${INFO} Installing Discord via Flatpak..."
+    flatpak install -y flathub com.discordapp.Discord
+    echo -e "${OK} Discord installed successfully (via Flatpak)"
+    echo -e "${NOTE} Launch with: ${CYAN}flatpak run com.discordapp.Discord${RESET}"
 }
 
 install_telegram() {
@@ -709,84 +810,32 @@ install_easyeffects() {
     echo -e "${NOTE} Launch with: ${CYAN}flatpak run com.github.wwmm.easyeffects${RESET}"
 }
 
-install_all_media() {
-    print_section "Installing All Media Applications"
+install_cava() {
+    print_section "Installing Cava (Audio Visualizer)"
     
-    local failed=0
-    install_pipewire_rnnoise || ((failed++))
-    install_spotify || ((failed++))
-    install_vlc || ((failed++))
-    install_obs || ((failed++))
-    install_noisetorch || ((failed++))
-    install_easyeffects || ((failed++))
-    
-    echo -e "\n${CYAN}════════════════════════════════════════${RESET}"
-    if [ $failed -eq 0 ]; then
-        echo -e "${GREEN}${BOLD}✓ All media applications installed successfully!${RESET}"
-    else
-        echo -e "${YELLOW}${BOLD}⚠ $failed application(s) failed to install${RESET}"
+    if command -v cava &> /dev/null; then
+        echo -e "${INFO} Cava is already installed"
+        cava -v
+        return 0
     fi
-    echo -e "${CYAN}════════════════════════════════════════${RESET}\n"
+    
+    # Cava usually requires adding a PPA on Ubuntu/Debian for latest version
+    case $PKG_MANAGER in
+        apt)
+             echo -e "${INFO} Adding Cava PPA..."
+             sudo add-apt-repository -y ppa:hhs81/cava >> "$LOG_FILE" 2>&1
+             update_package_database "$LOG_FILE"
+             install_package "cava" "$LOG_FILE"
+             ;;
+        *)
+             install_package "cava" "$LOG_FILE"
+             ;;
+    esac
+
+    echo -e "${OK} Cava installed successfully"
+    cava -v
 }
 
-# ============================================================================
-# MENU FUNCTIONS
-# ============================================================================
-
-show_main_menu() {
-    echo -e "${BOLD}Application Categories:${RESET}\n"
-    echo -e "  ${GREEN}1${RESET}) Browsers ${CYAN}(Chrome, Firefox, Brave, Edge)${RESET}"
-    echo -e "  ${GREEN}2${RESET}) Communication ${CYAN}(Slack, Discord, Telegram, Zoom)${RESET}"
-    echo -e "  ${GREEN}3${RESET}) Developer Tools ${CYAN}(VSCode, Cursor, Antigravity)${RESET}"
-    echo -e "  ${GREEN}4${RESET}) Media ${CYAN}(Spotify, VLC, OBS, Noise Suppression)${RESET}"
-    echo -e "  ${GREEN}5${RESET}) Back to Main Menu"
-    echo ""
-}
-
-show_browsers_menu() {
-    echo -e "${BOLD}Browsers:${RESET}\n"
-    echo -e "  ${GREEN}1${RESET}) Google Chrome"
-    echo -e "  ${GREEN}2${RESET}) Firefox"
-    echo -e "  ${GREEN}3${RESET}) Brave"
-    echo -e "  ${GREEN}4${RESET}) Microsoft Edge"
-    echo -e "  ${GREEN}5${RESET}) Install All Browsers"
-    echo -e "  ${GREEN}6${RESET}) Back"
-    echo ""
-}
-
-show_communication_menu() {
-    echo -e "${BOLD}Communication Tools:${RESET}\n"
-    echo -e "  ${GREEN}1${RESET}) Slack"
-    echo -e "  ${GREEN}2${RESET}) Discord"
-    echo -e "  ${GREEN}3${RESET}) Telegram"
-    echo -e "  ${GREEN}4${RESET}) Zoom"
-    echo -e "  ${GREEN}5${RESET}) Install All Communication Tools"
-    echo -e "  ${GREEN}6${RESET}) Back"
-    echo ""
-}
-
-show_developer_menu() {
-    echo -e "${BOLD}Developer Tools:${RESET}\n"
-    echo -e "  ${GREEN}1${RESET}) Visual Studio Code"
-    echo -e "  ${GREEN}2${RESET}) Cursor"
-    echo -e "  ${GREEN}3${RESET}) Antigravity"
-    echo -e "  ${GREEN}4${RESET}) Install All Developer Tools"
-    echo -e "  ${GREEN}5${RESET}) Back"
-    echo ""
-}
-
-show_media_menu() {
-    echo -e "${BOLD}Media Applications:${RESET}\n"
-    echo -e "  ${GREEN}1${RESET}) ${BOLD}PipeWire RNNoise${RESET} ${CYAN}(Built-in Noise Suppression - Recommended)${RESET}"
-    echo -e "  ${GREEN}2${RESET}) Spotify"
-    echo -e "  ${GREEN}3${RESET}) VLC Media Player"
-    echo -e "  ${GREEN}4${RESET}) OBS Studio"
-    echo -e "  ${GREEN}5${RESET}) NoiseTorch ${CYAN}(Alternative Noise Suppression)${RESET}"
-    echo -e "  ${GREEN}6${RESET}) EasyEffects ${CYAN}(Audio Effects Suite)${RESET}"
-    echo -e "  ${GREEN}7${RESET}) Install All Media Applications"
-    echo -e "  ${GREEN}8${RESET}) Back"
-    echo ""
-}
 
 # ============================================================================
 # SUBMENU HANDLERS
