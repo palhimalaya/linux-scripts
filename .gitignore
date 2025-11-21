@@ -1,0 +1,13 @@
+# Backup files
+popos-backup-*.tar.gz
+
+# Log files
+Install-Logs/
+
+# Temporary files
+*.tmp
+*.cache
+
+# User-specific files
+.DS_Store
+*~
