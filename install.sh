@@ -51,7 +51,8 @@ show_menu() {
     echo -e "  ${GREEN}5${RESET}) ${MAGENTA}Install Dotfiles${RESET} (Symlink configurations)"
     echo -e "  ${GREEN}6${RESET}) ${YELLOW}Backup System Configuration${RESET}"
     echo -e "  ${GREEN}7${RESET}) Install All ${CYAN}(Zsh + Fonts)${RESET}"
-    echo -e "  ${GREEN}8${RESET}) Exit"
+    echo -e "  ${GREEN}8${RESET}) Setup Webapp Scripts"
+    echo -e "  ${GREEN}9${RESET}) Exit"
     echo ""
 }
 
@@ -108,6 +109,10 @@ open_config_menu() {
     run_script "config.sh"
 }
 
+setup_webapp_scripts() {
+    run_script "webapp_setup.sh"
+}
+
 install_all() {
     echo -e "${BOLD}${CYAN}Installing Zsh and Fonts...${RESET}\n"
     echo -e "${NOTE} This will install: Zsh with Oh My Zsh + Fonts\n"
@@ -159,7 +164,7 @@ main() {
     if [ $# -eq 0 ]; then
         while true; do
             show_menu
-            read -p "$(echo -e ${CYAN}Enter your choice [1-8]:${RESET} )" choice
+            read -p "$(echo -e ${CYAN}Enter your choice [1-9]:${RESET} )" choice
             
             case $choice in
                 1)
@@ -195,6 +200,11 @@ main() {
                     show_banner
                     ;;
                 8)
+                    setup_webapp_scripts
+                    read -p "Press Enter to continue..."
+                    show_banner
+                    ;;
+                9)
                     echo -e "\n${CYAN}Goodbye!${RESET}\n"
                     exit 0
                     ;;

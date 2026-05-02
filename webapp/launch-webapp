@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# launch-webapp:summary=Launch a URL as a web app
+# launch-webapp:args=<url>
+
+# Check if Chromium is installed, otherwise fall back to default browser
+if [[ -f ~/.local/share/applications/chromium.desktop ]] || \
+   [[ -f ~/.local/share/applications/chromium-browser.desktop ]] || \
+   [[ -f ~/.nix-profile/share/applications/chromium.desktop ]] || \
+   [[ -f ~/.nix-profile/share/applications/chromium-browser.desktop ]] || \
+   [[ -f /usr/share/applications/chromium.desktop ]] || \
+   [[ -f /usr/share/applications/chromium-browser.desktop ]]; then
+
+  # Find which Chromium variant is available
+  for browser_file in chromium-browser.desktop chromium.desktop; do
+    for path in ~/.local/share/applications ~/.nix-profile/share/applications /usr/share/applications; do
+      if [[ -f "$path/$browser_file" ]]; then
+        browser="$browser_file"
+        break 2
+      fi
+    done
+  done
+else
+  browser=$(xdg-settings get default-web-browser)
+fi
+
+# Find browser executable
+browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+
+if [[ -z $browser_exec ]]; then
+  echo "Error: No suitable browser found."
+  echo "Please install Chromium: sudo pacman -S chromium"
+  exit 1
+fi
+
+# Add theme-aware flags for web apps
+THEME_FLAGS="--gtk-version=4 --force-dark-mode --enable-features=VaapiVideoDecoder"
+
+exec setsid uwsm-app -- "$browser_exec" "$THEME_FLAGS" --app="$1" "${@:2}"

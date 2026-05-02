@@ -224,9 +224,13 @@ install_tool_version() {
     if asdf install "$tool" "$version" >> "$LOG_FILE" 2>&1; then
         echo -e "${OK} ${YELLOW}$tool${RESET} ${CYAN}$version${RESET} installed successfully"
         
-        # Set as global version
-        asdf global "$tool" "$version" >> "$LOG_FILE" 2>&1
-        echo -e "${OK} Set ${YELLOW}$tool${RESET} ${CYAN}$version${RESET} as global version"
+        # Set as global version (prefer modern asdf syntax when available)
+        if asdf set -u "$tool" "$version" >> "$LOG_FILE" 2>&1; then
+            echo -e "${OK} Set ${YELLOW}$tool${RESET} ${CYAN}$version${RESET} as global version"
+        else
+            asdf global "$tool" "$version" >> "$LOG_FILE" 2>&1
+            echo -e "${OK} Set ${YELLOW}$tool${RESET} ${CYAN}$version${RESET} as global version"
+        fi
         return 0
     else
         echo -e "${ERROR} Failed to install $tool $version"
@@ -264,10 +268,40 @@ install_ruby() {
             install_package "rustc" "$LOG_FILE"
             ;;
         dnf|yum)
-            install_package "autoconf" "$LOG_FILE"
-            install_package "bison" "$LOG_FILE"
-            install_package "patch" "$LOG_FILE"
-            install_package "rust" "$LOG_FILE"
+            local packages=(
+                "gcc"
+                "make"
+                "patch"
+                "rust"
+                "openssl-devel"
+                "readline-devel"
+                "zlib-devel"
+                "libyaml-devel"
+                "libffi-devel"
+                "gdbm-devel"
+                "ncurses-devel"
+                "libxml2-devel"
+                "libxslt-devel"
+                "autoconf"
+                "bison"
+            )
+
+            for package in "${packages[@]}"; do
+                if [[ "$package" == "zlib-devel" ]]; then
+                    if is_package_installed "zlib-ng-compat-devel"; then
+                        echo -e "${INFO} ${MAGENTA}zlib-ng-compat-devel${RESET} is already installed. Skipping zlib-devel."
+                        continue
+                    fi
+
+                    if ! install_package "zlib-devel" "$LOG_FILE"; then
+                        echo -e "${WARN} zlib-devel not available. Trying zlib-ng-compat-devel instead."
+                        install_package "zlib-ng-compat-devel" "$LOG_FILE"
+                    fi
+                    continue
+                fi
+
+                install_package "$package" "$LOG_FILE"
+            done
             ;;
     esac
     
@@ -292,6 +326,9 @@ install_postgres() {
             install_package "postgresql-contrib" "$LOG_FILE"
             install_package "libpq-dev" "$LOG_FILE"
             
+            echo -e "${INFO} Enabling and starting PostgreSQL service..."
+            sudo systemctl enable --now postgresql >> "$LOG_FILE" 2>&1 || true
+            
             echo -e "${OK} PostgreSQL installed successfully"
             echo -e "${NOTE} PostgreSQL service management:"
             echo -e "  Start:   ${CYAN}sudo systemctl start postgresql${RESET}"
@@ -303,11 +340,19 @@ install_postgres() {
             echo -e "${INFO} Installing PostgreSQL and related packages..."
             install_package "postgresql-server" "$LOG_FILE"
             install_package "postgresql-contrib" "$LOG_FILE"
-            install_package "postgresql-devel" "$LOG_FILE"
+            if is_package_installed "postgresql-private-devel"; then
+                echo -e "${INFO} ${MAGENTA}postgresql-private-devel${RESET} is already installed. Skipping postgresql-devel."
+            elif ! install_package "postgresql-devel" "$LOG_FILE"; then
+                echo -e "${WARN} postgresql-devel not available. Trying postgresql-private-devel instead."
+                install_package "postgresql-private-devel" "$LOG_FILE"
+            fi
             
             # Initialize database
             echo -e "${INFO} Initializing PostgreSQL database..."
             sudo postgresql-setup --initdb >> "$LOG_FILE" 2>&1 || true
+            
+            echo -e "${INFO} Enabling and starting PostgreSQL service..."
+            sudo systemctl enable --now postgresql >> "$LOG_FILE" 2>&1 || true
             
             echo -e "${OK} PostgreSQL installed successfully"
             echo -e "${NOTE} PostgreSQL service management:"
@@ -324,6 +369,9 @@ install_postgres() {
             echo -e "${INFO} Initializing PostgreSQL database..."
             sudo -u postgres initdb -D /var/lib/postgres/data >> "$LOG_FILE" 2>&1 || true
             
+            echo -e "${INFO} Enabling and starting PostgreSQL service..."
+            sudo systemctl enable --now postgresql >> "$LOG_FILE" 2>&1 || true
+            
             echo -e "${OK} PostgreSQL installed successfully"
             echo -e "${NOTE} PostgreSQL service management:"
             echo -e "  Start:   ${CYAN}sudo systemctl start postgresql${RESET}"
@@ -336,6 +384,219 @@ install_postgres() {
             return 1
             ;;
     esac
+}
+
+configure_postgres_password_auth() {
+    print_section "Configuring PostgreSQL Password Auth"
+
+    if ! command -v psql >/dev/null 2>&1; then
+        echo -e "${ERROR} psql not found. Install PostgreSQL first."
+        return 1
+    fi
+
+    find_pg_hba_file() {
+        local hba_path=""
+
+        hba_path=$(sudo -u postgres psql -tAc "SHOW hba_file;" 2>>"$LOG_FILE" | tr -d '[:space:]')
+        if [ -n "$hba_path" ] && sudo test -f "$hba_path"; then
+            echo "$hba_path"
+            return 0
+        fi
+
+        local data_dir
+        data_dir=$(sudo -u postgres psql -tAc "SHOW data_directory;" 2>>"$LOG_FILE" | tr -d '[:space:]')
+        if [ -n "$data_dir" ] && sudo test -f "$data_dir/pg_hba.conf"; then
+            echo "$data_dir/pg_hba.conf"
+            return 0
+        fi
+
+        local candidates=(
+            "/var/lib/pgsql/data/pg_hba.conf"
+            "/var/lib/pgsql/16/data/pg_hba.conf"
+            "/var/lib/pgsql/17/data/pg_hba.conf"
+            "/var/lib/pgsql/18/data/pg_hba.conf"
+            "/var/lib/pgsql/pg_hba.conf"
+            "/var/lib/postgresql/data/pg_hba.conf"
+            "/var/lib/postgresql/pg_hba.conf"
+            "/var/lib/postgres/data/pg_hba.conf"
+            "/var/lib/postgres/pg_hba.conf"
+        )
+
+        for candidate in "${candidates[@]}"; do
+            if sudo test -f "$candidate"; then
+                echo "$candidate"
+                return 0
+            fi
+        done
+
+        local pattern
+        shopt -s nullglob
+        for pattern in /var/lib/pgsql/*/data/pg_hba.conf /var/lib/postgresql/*/data/pg_hba.conf; do
+            if sudo test -f "$pattern"; then
+                echo "$pattern"
+                shopt -u nullglob
+                return 0
+            fi
+        done
+        shopt -u nullglob
+
+        return 1
+    }
+
+    read -s -p "Enter new password for postgres user: " pg_password
+    echo
+    read -s -p "Confirm new password: " pg_password_confirm
+    echo
+
+    if [ -z "$pg_password" ] || [ "$pg_password" != "$pg_password_confirm" ]; then
+        echo -e "${ERROR} Passwords do not match or are empty."
+        return 1
+    fi
+
+    echo -e "${INFO} Ensuring PostgreSQL service is running..."
+    sudo systemctl start postgresql >> "$LOG_FILE" 2>&1 || true
+
+    local hba_file
+    if ! hba_file=$(find_pg_hba_file); then
+        echo -e "${ERROR} Could not locate pg_hba.conf."
+        return 1
+    fi
+
+    echo -e "${INFO} Updating postgres user password..."
+    sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER postgres WITH PASSWORD '$pg_password';" >> "$LOG_FILE" 2>&1
+
+    echo -e "${INFO} Updating authentication method in $hba_file..."
+    sudo cp "$hba_file" "$hba_file.bak" >> "$LOG_FILE" 2>&1
+
+    if sudo grep -Eq "^local\s+all\s+all\s+" "$hba_file"; then
+        sudo sed -i \
+            -e "s/^local\s\+all\s\+all\s\+.*/local all all md5/" \
+            -e "s/^host\s\+all\s\+all\s\+127\.0\.0\.1\/32\s\+.*/host all all 127.0.0.1\/32 md5/" \
+            -e "s/^host\s\+all\s\+all\s\+::1\/128\s\+.*/host all all ::1\/128 md5/" \
+            "$hba_file"
+    else
+        sudo awk '
+            BEGIN {
+                inserted=0;
+                lines[0]="local all all md5";
+                lines[1]="host all all 127.0.0.1/32 md5";
+                lines[2]="host all all ::1/128 md5";
+            }
+            {
+                print;
+                if (!inserted && $0 ~ /^# TYPE[[:space:]]+DATABASE[[:space:]]+USER/) {
+                    for (i=0; i<3; i++) print lines[i];
+                    inserted=1;
+                }
+            }
+            END {
+                if (!inserted) {
+                    for (i=0; i<3; i++) print lines[i];
+                }
+            }
+        ' "$hba_file" | sudo tee "$hba_file.tmp" >/dev/null
+        sudo mv "$hba_file.tmp" "$hba_file"
+    fi
+
+    echo -e "${INFO} Reloading PostgreSQL configuration..."
+    sudo systemctl reload postgresql >> "$LOG_FILE" 2>&1 || sudo systemctl restart postgresql >> "$LOG_FILE" 2>&1
+
+    echo -e "${OK} Password auth configured for postgres user."
+}
+
+manage_postgres_roles() {
+    print_section "Manage PostgreSQL Roles"
+
+    if ! command -v psql >/dev/null 2>&1; then
+        echo -e "${ERROR} psql not found. Install PostgreSQL first."
+        return 1
+    fi
+
+    local role_name
+    read -r -p "Enter role name: " role_name
+    if [ -z "$role_name" ]; then
+        echo -e "${ERROR} Role name cannot be empty."
+        return 1
+    fi
+
+    local exists
+    exists=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${role_name}';" 2>>"$LOG_FILE" | tr -d '[:space:]')
+
+    local action
+    if [ "$exists" = "1" ]; then
+        action="alter"
+        echo -e "${INFO} Role ${MAGENTA}$role_name${RESET} exists. Updating settings."
+    else
+        action="create"
+        echo -e "${INFO} Role ${MAGENTA}$role_name${RESET} does not exist. Creating."
+    fi
+
+    read -s -p "Enter password (leave blank for no change): " role_password
+    echo
+
+    local login="NOLOGIN"
+    local superuser="NOSUPERUSER"
+    local createdb="NOCREATEDB"
+    local createrole="NOCREATEROLE"
+    local replication="NOREPLICATION"
+    local bypassrls="NOBYPASSRLS"
+
+    read -r -p "Allow login? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        login="LOGIN"
+    fi
+
+    read -r -p "Superuser? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        superuser="SUPERUSER"
+    fi
+
+    read -r -p "Can create databases? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        createdb="CREATEDB"
+    fi
+
+    read -r -p "Can create roles? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        createrole="CREATEROLE"
+    fi
+
+    read -r -p "Replication role? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        replication="REPLICATION"
+    fi
+
+    read -r -p "Bypass row level security? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        bypassrls="BYPASSRLS"
+    fi
+
+    local sql
+    if [ "$action" = "create" ]; then
+        sql="CREATE ROLE \"$role_name\" $login $superuser $createdb $createrole $replication $bypassrls;"
+    else
+        sql="ALTER ROLE \"$role_name\" $login $superuser $createdb $createrole $replication $bypassrls;"
+    fi
+
+    sudo -u postgres psql -v ON_ERROR_STOP=1 -c "$sql" >> "$LOG_FILE" 2>&1
+
+    if [ -n "${role_password:-}" ]; then
+        sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$role_name\" WITH PASSWORD '$role_password';" >> "$LOG_FILE" 2>&1
+    fi
+
+    read -r -p "Grant database privileges? [y/N]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        read -r -p "Database name: " db_name
+        if [ -n "$db_name" ]; then
+            read -r -p "Privileges (comma-separated, e.g. CONNECT,CREATE,TEMP or ALL): " db_privs
+            if [ -n "$db_privs" ]; then
+                sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT $db_privs ON DATABASE \"$db_name\" TO \"$role_name\";" >> "$LOG_FILE" 2>&1
+                echo -e "${OK} Granted database privileges to ${MAGENTA}$role_name${RESET}."
+            fi
+        fi
+    fi
+
+    echo -e "${OK} Role ${MAGENTA}$role_name${RESET} configured."
 }
 
 install_mysql() {
@@ -480,7 +741,9 @@ show_dev_menu() {
     echo -e "  ${GREEN}5${RESET}) Install MySQL ${YELLOW}(system package)${RESET}"
     echo -e "  ${GREEN}6${RESET}) Install Neovim"
     echo -e "  ${GREEN}7${RESET}) Install All Tools"
-    echo -e "  ${GREEN}8${RESET}) Back to Main Menu"
+    echo -e "  ${GREEN}8${RESET}) Configure PostgreSQL Password Auth"
+    echo -e "  ${GREEN}9${RESET}) Manage PostgreSQL Roles"
+    echo -e "  ${GREEN}10${RESET}) Back to Main Menu"
     echo ""
 }
 
@@ -493,7 +756,7 @@ main() {
     
     while true; do
         show_dev_menu
-        read -p "$(echo -e ${CYAN}Enter your choice [1-7]:${RESET} )" choice
+        read -p "$(echo -e ${CYAN}Enter your choice [1-10]:${RESET} )" choice
         
         case $choice in
             1)
@@ -532,6 +795,16 @@ main() {
                 show_dev_banner
                 ;;
             8)
+                configure_postgres_password_auth
+                read -p "Press Enter to continue..."
+                show_dev_banner
+                ;;
+            9)
+                manage_postgres_roles
+                read -p "Press Enter to continue..."
+                show_dev_banner
+                ;;
+            10)
                 echo -e "\n${CYAN}Returning to main menu...${RESET}\n"
                 exit 0
                 ;;

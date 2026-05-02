@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Main webapp management script
+# Usage: webapp [install|remove|list|help] [options]
+
+WEBAPP_DIR="$HOME/.config/DankMaterialShell/scripts/webapp"
+
+case "${1:-help}" in
+    install)
+        shift
+        exec "$WEBAPP_DIR/webapp-install" "$@"
+        ;;
+    remove)
+        shift
+        exec "$WEBAPP_DIR/webapp-remove" "$@"
+        ;;
+    remove-all)
+        exec "$WEBAPP_DIR/webapp-remove-all"
+        ;;
+    list)
+        echo "Installed web apps:"
+        grep -l "Exec=.*$WEBAPP_DIR" ~/.local/share/applications/*.desktop 2>/dev/null | \
+        while read -r file; do
+            basename "$file" .desktop
+        done
+        ;;
+    install-defaults)
+        exec "$WEBAPP_DIR/install-default-webapps.sh"
+        ;;
+    help|--help|-h)
+        cat <<EOF
+Web App Management System for DMS
+
+Usage: webapp [command] [options]
+
+Commands:
+    install [name] [url] [icon]   - Install a web app interactively or with args
+    remove                           - Remove web apps interactively
+    remove-all                       - Remove all installed web apps
+    list                             - List installed web apps
+    install-defaults                  - Install popular default web apps
+    help                             - Show this help message
+
+Examples:
+    webapp install                    # Interactive mode
+    webapp install "My App" "https://example.com"
+    webapp remove
+    webapp install-defaults
+EOF
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'webapp help' for usage information"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# launch-or-focus-webapp:summary=Launch or focus on a given web app identified by the window-pattern.
+# launch-or-focus-webapp:args=<window-pattern> <url-and-flags...>
+
+if (($# == 0)); then
+  echo "Usage: launch-or-focus-webapp [window-pattern] [url-and-flags...]"
+  exit 1
+fi
+
+WINDOW_PATTERN="$1"
+shift
+LAUNCH_COMMAND="~/.config/DankMaterialShell/scripts/webapp/launch-webapp $@"
+
+# For now, just launch. DMS may have its own window focus mechanism
+exec ~/.config/DankMaterialShell/scripts/webapp/launch-webapp "$@"
